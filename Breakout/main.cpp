@@ -26,6 +26,11 @@ private:
 	float fBatSpeed = 250.0f;
 	float fBallRadius = 5.0f;
 
+	olc::vi2d vBlockSize = { 16, 16 };
+	std::unique_ptr<int[]> blocks;
+
+	std::unique_ptr<olc::Sprite> sprTile;
+
 	float fTargetFrameTime = 1.0f / 60.0f; // 60 FPS
 	float fAccumulatedTime = 0.0f;
 
@@ -34,7 +39,30 @@ public:
 	bool OnUserCreate() override
 	{
 		// Called once at the start, so create things here
-		srand(100);
+		blocks = std::make_unique<int[]>(24 * 30);
+		for (int y = 0; y < 30; y++) {
+			for (int x = 0; x < 24; x++) {
+				if (x == 0 || y == 0 || x == 23) {
+					blocks[y * 24 + x] = 10;
+				}
+				else {
+					blocks[y * 24 + x] = 0;
+				}
+
+				if (x > 2 && x <= 20 && y > 3 && y <= 5) {
+					blocks[y * 24 + x] = 1;
+				}
+				if (x > 2 && x <= 20 && y > 5 && y <= 7) {
+					blocks[y * 24 + x] = 2;
+				}
+				if (x > 2 && x <= 20 && y > 7 && y <= 9) {
+					blocks[y * 24 + x] = 3;
+				}
+			}
+		}
+
+		// Load the sprites
+		sprTile = std::make_unique<olc::Sprite>("tut_tiles.png");
 		return true;
 	}
 
@@ -50,76 +78,33 @@ public:
 			return true;
 		}
 
-		// Handle user input
-		if (GetKey(olc::Key::LEFT).bHeld) {
-			fBatPos -= fBatSpeed * fElapsedTime;
-		}
-		if (GetKey(olc::Key::RIGHT).bHeld) {
-			fBatPos += fBatSpeed * fElapsedTime;
-		}
-
-		if (fBatPos < 11.0f) {
-			fBatPos = 11.0f; // Left boundary
-		}
-		if (fBatPos + fBatWidth > float(ScreenWidth()) - 10.0f) {
-			fBatPos = float(ScreenWidth()) - 10.0f - fBatWidth;
-		}
-
-		// Update ball
-		vBall += vBallVel * fElapsedTime;
-
-		// Crude arena detection
-		if (vBall.y <= 10.0f) {
-			vBallVel.y *= -1.0f;
-		}
-		if (vBall.x <= 10.0f) {
-			vBallVel.x *= -1.0f;
-		}
-		if (vBall.x >= float(ScreenWidth()) - 10.0f) {
-			vBallVel.x *= -1.0f;
-		}
-
-		// Check for collision with bat
-		if (vBall.y >= (float(ScreenHeight()) - 20.0f) && (vBall.x > fBatPos + fBatWidth)) {
-			vBallVel.y *= -1.0f;
-		}
-
-		// Check if ball has gone off screen
-		if (vBall.y > ScreenHeight()) {
-			// Reset ball location
-			vBall = { 200.0f, 200.0f };
-			// Choose random direction
-			float fAngle = (float(rand()) / float(RAND_MAX)) * 2.0f * 3.14159f;
-			vBallVel = { 300.0f * cos(fAngle), 300.0f * sin(fAngle) };
-		}
-
-		// Cheating! Moving the ball with the mouse
-		if (GetMouse(0).bHeld) {
-			vBall = { float(GetMouseX()), float(GetMouseY()) };
-		}
-		if (GetMouseWheel() > 0) {
-			fBallRadius += 1.0f;
-		}
-		if (GetMouseWheel() < 0) {
-			fBallRadius -= 1.0f;
-		}
-		if (fBallRadius < 5.0f) {
-			fBallRadius = 5.0f;
-		}
-
 		// Erase previous frame
 		Clear(olc::DARK_BLUE);
 
-		// Draw boundary
-		DrawLine(10, 10, 502, 10, olc::YELLOW);
-		DrawLine(10, 10, 10, 470, olc::YELLOW);
-		DrawLine(502, 10, 502, 470, olc::YELLOW);
+		// Draw blocks
+		SetPixelMode(olc::Pixel::MASK); // Don't draw pixels that have any transparency
+		for (int y = 0; y < 30; y++) {
+			for (int x = 0; x < 24; x++) {
+				switch (blocks[y * 24 + x]) {
+				case 0: // Do nothing
+					break;
+				case 10: // Draw boundary
+					DrawPartialSprite(olc::vi2d(x, y) * vBlockSize, sprTile.get(), olc::vi2d(0, 0) * vBlockSize, vBlockSize);
+					break;
+				case 1: // Draw red blocl
+					DrawPartialSprite(olc::vi2d(x, y) * vBlockSize, sprTile.get(), olc::vi2d(1, 0) * vBlockSize, vBlockSize);
+					break;
+				case 2: // Draw green block
+					DrawPartialSprite(olc::vi2d(x, y) * vBlockSize, sprTile.get(), olc::vi2d(2, 0) * vBlockSize, vBlockSize);
+					break;
+				case 3: //  Draw yellow block
+					DrawPartialSprite(olc::vi2d(x, y) * vBlockSize, sprTile.get(), olc::vi2d(3, 0) * vBlockSize, vBlockSize);
+					break;
+				}
+			}
+		}
+		SetPixelMode(olc::Pixel::NORMAL); // Draw all pixels
 
-		// Draw bat
-		FillRect(int(fBatPos), ScreenHeight() - 20, int(fBatWidth), 10, olc::GREEN);
-
-		// Draw ball
-		FillCircle(vBall, 5, olc::CYAN);
 		return true;
 	}
 };
