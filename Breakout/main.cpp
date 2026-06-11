@@ -1,6 +1,6 @@
-// O------------------------------------------------------------------------------O
-// | Example "Hello World" Program (main.cpp)                                     |
-// O------------------------------------------------------------------------------O
+// Tutorial program from https://github.com/OneLoneCoder/olcPixelGameEngine/wiki
+// As such, variables are in hungarian notation, because even though I'm typing everything out myself
+// I don't want to get confused if I start changing names of things. It's also why they style is not consistent
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
@@ -22,25 +22,40 @@ private:
 	float fBatWidth = 40.0f;
 
 	olc::vf2d vBall = { 200.0f, 200.0f };
-	float fBatSpeed = 0.1f;
+	olc::vf2d vBallVel = { 200.0f, -100.0f };
+	float fBatSpeed = 250.0f;
 	float fBallRadius = 5.0f;
+
+	float fTargetFrameTime = 1.0f / 60.0f; // 60 FPS
+	float fAccumulatedTime = 0.0f;
 
 public:
 	
 	bool OnUserCreate() override
 	{
 		// Called once at the start, so create things here
+		srand(100);
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
+		// Clamp physics to 60 fps
+		fAccumulatedTime += fElapsedTime;
+		if (fAccumulatedTime >= fTargetFrameTime) {
+			fAccumulatedTime -= fTargetFrameTime;
+			fElapsedTime = fTargetFrameTime;
+		}
+		else {
+			return true;
+		}
+
 		// Handle user input
 		if (GetKey(olc::Key::LEFT).bHeld) {
-			fBatPos -= fBatSpeed;
+			fBatPos -= fBatSpeed * fElapsedTime;
 		}
 		if (GetKey(olc::Key::RIGHT).bHeld) {
-			fBatPos += fBatSpeed;
+			fBatPos += fBatSpeed * fElapsedTime;
 		}
 
 		if (fBatPos < 11.0f) {
@@ -48,6 +63,34 @@ public:
 		}
 		if (fBatPos + fBatWidth > float(ScreenWidth()) - 10.0f) {
 			fBatPos = float(ScreenWidth()) - 10.0f - fBatWidth;
+		}
+
+		// Update ball
+		vBall += vBallVel * fElapsedTime;
+
+		// Crude arena detection
+		if (vBall.y <= 10.0f) {
+			vBallVel.y *= -1.0f;
+		}
+		if (vBall.x <= 10.0f) {
+			vBallVel.x *= -1.0f;
+		}
+		if (vBall.x >= float(ScreenWidth()) - 10.0f) {
+			vBallVel.x *= -1.0f;
+		}
+
+		// Check for collision with bat
+		if (vBall.y >= (float(ScreenHeight()) - 20.0f) && (vBall.x > fBatPos + fBatWidth)) {
+			vBallVel.y *= -1.0f;
+		}
+
+		// Check if ball has gone off screen
+		if (vBall.y > ScreenHeight()) {
+			// Reset ball location
+			vBall = { 200.0f, 200.0f };
+			// Choose random direction
+			float fAngle = (float(rand()) / float(RAND_MAX)) * 2.0f * 3.14159f;
+			vBallVel = { 300.0f * cos(fAngle), 300.0f * sin(fAngle) };
 		}
 
 		// Cheating! Moving the ball with the mouse
