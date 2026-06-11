@@ -31,8 +31,21 @@ private:
 
 	std::unique_ptr<olc::Sprite> sprTile;
 
+	std::unique_ptr<olc::Sprite> sprFragment;
+	std::unique_ptr<olc::Decal> decFragment;
+
 	float fTargetFrameTime = 1.0f / 60.0f; // 60 FPS
 	float fAccumulatedTime = 0.0f;
+
+	struct sFragment {
+		olc::vf2d pos;
+		olc::vf2d vel;
+		float fAngle;
+		float fTime;
+		olc::Pixel color;
+	};
+
+	std::list<sFragment> listFragments;
 
 public:
 	
@@ -69,28 +82,21 @@ public:
 
 		// Load the sprites
 		sprTile = std::make_unique<olc::Sprite>("tut_tiles.png");
+		sprFragment = std::make_unique<olc::Sprite>("tut_fragment.png");
+		decFragment = std::make_unique<olc::Decal>(sprFragment.get());
+
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		// Clamp physics to 60 fps
-		fAccumulatedTime += fElapsedTime;
-		if (fAccumulatedTime >= fTargetFrameTime) {
-			fAccumulatedTime -= fTargetFrameTime;
-			fElapsedTime = fTargetFrameTime;
-		}
-		else {
-			return true;
-		}
-
 		// Calculate where ball should be if there's no collision
 		olc::vf2d vPotentialBallPos = vBallPos + vBallDir * fBallSpeed * fElapsedTime;
 
 		// Test for hits at 4 points around the ball
 		olc::vf2d vTileBallRadialDims = { fBallRadius / vBlockSize.x, fBallRadius / vBlockSize.y };
 
-		auto TestResolveCollisionPoint = [&](const olc::vf2d& point) {
+		auto TestResolveCollisionPoint = [&](const olc::vf2d& point, olc::vf2d& hitpos, int& id) {
 			olc::vi2d vTestPoint = vPotentialBallPos + vTileBallRadialDims * point;
 			auto& tile = blocks[vTestPoint.y * 24 + vTestPoint.x];
 			if (tile == 0) {
@@ -101,6 +107,8 @@ public:
 				// Ball collided with a tile
 				bool bTileHit = tile < 10;
 				if (bTileHit) {
+					id = tile;
+					hitpos = { float(vTestPoint.x), float(vTestPoint.y) };
 					tile--;
 				}
 
@@ -116,10 +124,35 @@ public:
 		};
 
 		bool bHasHitTile = false;
-		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(0, -1));
-		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(0, +1));
-		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(-1, 0));
-		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(+1, 0));
+		olc::vf2d hitpos;
+		int hitid = 0;
+		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(0, -1), hitpos, hitid);
+		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(0, +1), hitpos, hitid);
+		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(-1, 0), hitpos, hitid);
+		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(+1, 0), hitpos, hitid);
+
+		if (bHasHitTile) {
+			for (int i = 0; i < 100; i++) {
+				sFragment f;
+				f.pos = { hitpos.x + 0.5f, hitpos.y + 0.5f };
+				float fAngle = float(rand()) / float(RAND_MAX) * 2.0f * 3.14159f;
+				float fVelocity = float(rand()) / float(RAND_MAX) * 10.0f;
+				f.vel = { fVelocity * cos(fAngle), fVelocity * sin(fAngle) };
+				f.fAngle = fAngle;
+				f.fTime = 3.0f;
+
+				if (hitid == 1) {
+					f.color = olc::RED;
+				}
+				else if (hitid == 2) {
+					f.color = olc::GREEN;
+				}
+				else if (hitid == 3) {
+					f.color = olc::YELLOW;
+				}
+				listFragments.push_back(f);
+			}
+		}
 
 		// Artificial floor for testing
 		if (vBallPos.y > 20.0f) {
@@ -128,6 +161,21 @@ public:
 
 		// Finally update ball position
 		vBallPos += vBallDir * fBallSpeed * fElapsedTime;
+
+		// Update fragments
+		for (auto& f : listFragments) {
+			f.vel += olc::vf2d(0.0f, 20.0f) * fElapsedTime;
+			f.pos += f.vel * fElapsedTime;
+			f.fAngle += 5.0f * fElapsedTime;
+			f.fTime -= fElapsedTime;
+			f.color.a = (f.fTime / 3.0f) * 255; // Make it fade out over 3 seconds
+		}
+
+		// Remove dead fragments
+		listFragments.erase(
+			std::remove_if(listFragments.begin(), listFragments.end(), [](const sFragment& f) { return f.fTime < 0.0f;  }),
+			listFragments.end()
+		);
 
 		// Erase previous frame
 		Clear(olc::DARK_BLUE);
@@ -158,6 +206,11 @@ public:
 
 		// Draw ball
 		FillCircle(vBallPos * vBlockSize, fBallRadius, olc::CYAN);
+
+		// Draw fragments
+		for (auto& f : listFragments) {
+			DrawRotatedDecal(f.pos* vBlockSize, decFragment.get(), f.fAngle, { 4, 4 }, { 1, 1 }, f.color);
+		}
 
 		return true;
 	}

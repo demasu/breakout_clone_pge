@@ -135,6 +135,7 @@
     <ClInclude Include="olcPixelGameEngine.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="tut_fragment.png" />
     <Image Include="tut_tile.png" />
     <Image Include="tut_tiles.png" />
   </ItemGroup>
